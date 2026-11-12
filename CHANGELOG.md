@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Ship .meta files for all package assets (required for immutable git
+  packages; without them Unity ignores the scripts).
+
 ## 1.0.0
 
 - First release.
