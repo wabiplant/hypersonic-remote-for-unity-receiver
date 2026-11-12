@@ -1,0 +1,1 @@
+{"allowUnsafeCode":false,"autoReferenced":true,"defineConstraints":[],"excludePlatforms":[],"includePlatforms":["Editor"],"name":"HyperSonic.Editor","noEngineReferences":false,"overrideReferences":false,"precompiledReferences":[],"references":["HyperSonic.Runtime"],"rootNamespace":"","versionDefines":[]}
