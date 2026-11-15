@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3
+
+- Correct the 1.0.2 stale-object sweep: leftovers float outside any scene
+  (Scene.IsValid() is false for them), so the first sweep skipped them.
+  Assets are now excluded via AssetDatabase path instead, and the sweep
+  actually removes the accumulated objects.
+
 ## 1.0.2
 
 - Fix auto-spawn accumulating one leftover receiver/streamer object per Play

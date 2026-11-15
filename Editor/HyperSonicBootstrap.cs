@@ -43,9 +43,12 @@ namespace HyperSonic.Editor
             // 累積し続けていた (実測 100 個超)。また残った個体は次セッションで
             // 正常に動かないことがある。残骸は破棄してセッションごとに作り直す。
             // 手動配置された Receiver (HideAndDontSave でないもの) は従来どおり尊重する。
+            // 残骸はシーンが無効 (IsValid=false) な浮遊オブジェクトとして残る。
+            // アセット (プレハブ等) と区別するため AssetDatabase のパス有無で判定する。
             foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicReceiver>())
             {
-                if (old == null || !old.gameObject.scene.IsValid()) continue;
+                if (old == null) continue;
+                if (!string.IsNullOrEmpty(AssetDatabase.GetAssetPath(old))) continue;
                 if (old.gameObject.hideFlags != HideFlags.HideAndDontSave)
                 {
                     if (old.GetComponent<HyperSonicVideoStreamer>() == null)
@@ -57,7 +60,8 @@ namespace HyperSonic.Editor
             }
             foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicVideoStreamer>())
             {
-                if (old != null && old.gameObject.scene.IsValid() &&
+                if (old != null &&
+                    string.IsNullOrEmpty(AssetDatabase.GetAssetPath(old)) &&
                     old.gameObject.hideFlags == HideFlags.HideAndDontSave)
                     Object.Destroy(old.gameObject);
             }
