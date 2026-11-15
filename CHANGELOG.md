@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+- Fix auto-spawn accumulating one leftover receiver/streamer object per Play
+  session in the Editor (the hidden auto-spawned objects survive Play mode
+  and were invisible to the previous existence check). Stale auto-spawned
+  objects are now destroyed and recreated fresh each Play session.
+  Manually placed receivers are still respected.
+
 ## 1.0.1
 
 - Ship .meta files for all package assets (required for immutable git

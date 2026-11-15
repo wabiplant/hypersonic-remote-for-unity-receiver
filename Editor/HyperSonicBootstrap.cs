@@ -24,27 +24,49 @@ namespace HyperSonic.Editor
             if (EditorApplication.isPlaying) EditorApplication.delayCall += EnsureSpawned;
         }
 
+        private static bool s_SpawnedThisSession;
+
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.EnteredPlayMode) EnsureSpawned();
+            else if (state == PlayModeStateChange.ExitingPlayMode) s_SpawnedThisSession = false;
         }
 
         private static void EnsureSpawned()
         {
             if (!EditorApplication.isPlaying) return;
+            if (s_SpawnedThisSession && HyperSonicReceiver.Instance != null) return;
 
-            var receiver = Object.FindFirstObjectByType<HyperSonicReceiver>();
-            if (receiver == null)
+            // HideAndDontSave の自動生成物は Play を跨いで残骸として残る。
+            // FindFirstObjectByType では残骸を見つけられないため、従来は Play のたびに
+            // 新規生成され、Receiver は自己破棄されても Streamer と GameObject が
+            // 累積し続けていた (実測 100 個超)。また残った個体は次セッションで
+            // 正常に動かないことがある。残骸は破棄してセッションごとに作り直す。
+            // 手動配置された Receiver (HideAndDontSave でないもの) は従来どおり尊重する。
+            foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicReceiver>())
             {
-                var go = new GameObject("[HyperSonic] Auto");
-                go.hideFlags = HideFlags.HideAndDontSave;
-                go.AddComponent<HyperSonicReceiver>();
-                go.AddComponent<HyperSonicVideoStreamer>();
+                if (old == null || !old.gameObject.scene.IsValid()) continue;
+                if (old.gameObject.hideFlags != HideFlags.HideAndDontSave)
+                {
+                    if (old.GetComponent<HyperSonicVideoStreamer>() == null)
+                        old.gameObject.AddComponent<HyperSonicVideoStreamer>();
+                    s_SpawnedThisSession = true;
+                    return;
+                }
+                Object.Destroy(old.gameObject);
             }
-            else if (receiver.GetComponent<HyperSonicVideoStreamer>() == null)
+            foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicVideoStreamer>())
             {
-                receiver.gameObject.AddComponent<HyperSonicVideoStreamer>();
+                if (old != null && old.gameObject.scene.IsValid() &&
+                    old.gameObject.hideFlags == HideFlags.HideAndDontSave)
+                    Object.Destroy(old.gameObject);
             }
+
+            var go = new GameObject("[HyperSonic] Auto");
+            go.hideFlags = HideFlags.HideAndDontSave;
+            go.AddComponent<HyperSonicReceiver>();
+            go.AddComponent<HyperSonicVideoStreamer>();
+            s_SpawnedThisSession = true;
         }
     }
 }
