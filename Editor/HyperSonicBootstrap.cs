@@ -45,6 +45,7 @@ namespace HyperSonic.Editor
             // 手動配置された Receiver (HideAndDontSave でないもの) は従来どおり尊重する。
             // 残骸はシーンが無効 (IsValid=false) な浮遊オブジェクトとして残る。
             // アセット (プレハブ等) と区別するため AssetDatabase のパス有無で判定する。
+            // 通常の Destroy では浮遊オブジェクトは消えない (実測) ため DestroyImmediate を使う。
             foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicReceiver>())
             {
                 if (old == null) continue;
@@ -56,14 +57,14 @@ namespace HyperSonic.Editor
                     s_SpawnedThisSession = true;
                     return;
                 }
-                Object.Destroy(old.gameObject);
+                Object.DestroyImmediate(old.gameObject);
             }
             foreach (var old in Resources.FindObjectsOfTypeAll<HyperSonicVideoStreamer>())
             {
                 if (old != null &&
                     string.IsNullOrEmpty(AssetDatabase.GetAssetPath(old)) &&
                     old.gameObject.hideFlags == HideFlags.HideAndDontSave)
-                    Object.Destroy(old.gameObject);
+                    Object.DestroyImmediate(old.gameObject);
             }
 
             var go = new GameObject("[HyperSonic] Auto");

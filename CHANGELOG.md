@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4
+
+- Use DestroyImmediate for the stale-object sweep: the leftovers float
+  outside any scene, where a deferred Destroy() never reaches them.
+- Ship .meta files for the remaining package files (README, CHANGELOG,
+  LICENSE, package.json and the docs folder), so Unity no longer warns
+  that assets in the immutable package folder have no meta file.
+
 ## 1.0.3
 
 - Correct the 1.0.2 stale-object sweep: leftovers float outside any scene
