@@ -3,15 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HyperSonic Remote for Unity Receiver</title>
+<title>HyperSonic Remote for Unity Receiver — Support</title>
 <style>
   body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.8; color: #222; max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
   h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.15rem; margin-top: 2em; }
+  code { background: #f2f2f2; padding: 0 4px; border-radius: 4px; }
 </style>
 </head>
 <body>
 <h1>HyperSonic Remote for Unity Receiver</h1>
-<p>Unity Editor で再生中のゲームを iPhone から低遅延で操作するための受信パッケージです。導入方法は <a href="https://github.com/wabiplant/hypersonic-remote-for-unity-receiver">GitHub リポジトリ</a> をご覧ください。</p>
+<p>Unity Editor で再生中のゲームを iPhone から低遅延で操作するための受信パッケージです。<br>
+The Unity-side receiver for <strong>HyperSonic Remote</strong>, an iPhone app that turns your phone into a low-latency touch pad for the Unity Editor.</p>
+
+<h2>導入方法 (Setup)</h2>
+<ol>
+  <li>Unity の Package Manager で <strong>+ → Add package from git URL…</strong> を選び、次の URL を貼ります:<br><code>https://github.com/wabiplant/hypersonic-remote-for-unity-receiver.git</code></li>
+  <li>お使いの Unity プロジェクトで <strong>Play</strong> を押します。受信は自動で起動します（シーンへの追加作業は不要です）。</li>
+  <li>iPhone アプリ HyperSonic Remote を開き、表示されたコンピューターを選んで接続します。</li>
+</ol>
+<p>パソコン側に追加で入れるものはありません（Wi-Fi でも USB でも、別途のアプリやコマンドは不要です）。導入の詳細は <a href="https://github.com/wabiplant/hypersonic-remote-for-unity-receiver">GitHub リポジトリ</a> をご覧ください。</p>
+
+<h2>困ったときは (Troubleshooting)</h2>
+<ul>
+  <li><strong>コンピューターが見つからない:</strong> iPhone とパソコンが同じ Wi-Fi ネットワークにあるか確認してください。初回はパソコン側で Unity の「ローカルネットワーク」へのアクセス許可が必要です。</li>
+  <li><strong>つながるのに操作が効かない:</strong> Unity で Play 中かどうか確認してください。受信は Play 中のみ動作します。</li>
+  <li><strong>USB で使いたい:</strong> ケーブルで iPhone とパソコンを繋ぎ、アプリで USB を選ぶだけです（追加のソフトやコマンドは不要です）。</li>
+</ul>
+
+<h2>お問い合わせ (Contact / Support)</h2>
+<p>不具合の報告やご質問は GitHub の Issues へお願いします:<br>
+<a href="https://github.com/wabiplant/hypersonic-remote-for-unity-receiver/issues">https://github.com/wabiplant/hypersonic-remote-for-unity-receiver/issues</a></p>
 <p><a href="privacy.html">プライバシーポリシー（HyperSonic Remote アプリ）</a></p>
 </body>
 </html>
