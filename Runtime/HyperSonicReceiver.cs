@@ -98,6 +98,13 @@ namespace HyperSonic
         private readonly ConcurrentQueue<string> m_Inbox = new ConcurrentQueue<string>();
         private readonly System.Collections.Generic.Dictionary<int, RemoteTouch> m_Active =
             new System.Collections.Generic.Dictionary<int, RemoteTouch>();
+        // 届いた順の未公開状態 (指ごと)。そのまま m_Active へ上書きすると、同じ
+        // フレーム内に届いた Began が後続の Moved/Stationary に潰れて読み手から
+        // 一度も見えなくなる (2026-11-16 実機で確認: 左スティックが指を捕捉でき
+        // ない)。phase の遷移は1フレームに1段だけ進め、Began と Ended/Canceled
+        // は必ず丸1フレーム公開する (Unity 標準の Input.touches と同じ意味論)。
+        private readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.Queue<RemoteTouch>> m_Pending =
+            new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Queue<RemoteTouch>>();
         private readonly System.Collections.Generic.Dictionary<int, float> m_LastSeen =
             new System.Collections.Generic.Dictionary<int, float>();
         private RemoteTouch[] m_Touches = Array.Empty<RemoteTouch>();
@@ -364,6 +371,9 @@ namespace HyperSonic
         /// 正常な長押しがここに引っかかることはない。UDP で Ended が落ちた時の安全弁。</summary>
         public float staleTouchTimeout = 1.0f;
 
+        private static bool IsTransition(TouchPhase ph) =>
+            ph == TouchPhase.Began || ph == TouchPhase.Ended || ph == TouchPhase.Canceled;
+
         private void Update()
         {
             // hello に載せるゲーム画面サイズをメインスレッドで最新化する
@@ -372,32 +382,124 @@ namespace HyperSonic
             while (m_Inbox.TryDequeue(out var json))
                 ApplyPacket(json);
 
-            // 安全弁: パケットが途絶した指は Canceled にして 1 フレーム公開してから消す
+            // 安全弁: パケットが途絶した指は Canceled を遷移列へ積む (公開は遷移
+            // ロジック側で1フレーム行われる)。既に終了遷移が積まれている指や、
+            // 終了済みの指には積まない。
             if (staleTouchTimeout > 0)
             {
                 float now = Time.realtimeSinceStartup;
                 var stale = new System.Collections.Generic.List<int>();
-                foreach (var kv in m_Active)
-                    if (kv.Value.phase != TouchPhase.Ended && kv.Value.phase != TouchPhase.Canceled &&
-                        m_LastSeen.TryGetValue(kv.Key, out var ls) && now - ls > staleTouchTimeout)
-                        stale.Add(kv.Key);
+                foreach (var id in new System.Collections.Generic.List<int>(m_LastSeen.Keys))
+                {
+                    if (now - m_LastSeen[id] <= staleTouchTimeout) continue;
+                    if (!LastKnown(id, out var last)) continue;
+                    if (last.phase == TouchPhase.Ended || last.phase == TouchPhase.Canceled) continue;
+                    if (HasPendingTransition(id, TouchPhase.Canceled) || HasPendingTransition(id, TouchPhase.Ended)) continue;
+                    stale.Add(id);
+                }
                 foreach (var id in stale)
                 {
-                    var t = m_Active[id];
-                    t.phase = TouchPhase.Canceled;
-                    t.deltaTime = now - m_LastSeen[id];
-                    m_Active[id] = t;
+                    LastKnown(id, out var last);
+                    last.phase = TouchPhase.Canceled;
+                    last.deltaPosition = Vector2.zero;
+                    last.deltaTime = now - m_LastSeen[id];
+                    EnqueuePending(id, last);
                 }
             }
 
-            // Ended/Canceled は 1 フレームだけ公開してから消す
-            var snapshot = new System.Collections.Generic.List<RemoteTouch>(m_Active.Values);
-            m_Touches = snapshot.ToArray();
-            var remove = new System.Collections.Generic.List<int>();
-            foreach (var kv in m_Active)
-                if (kv.Value.phase == TouchPhase.Ended || kv.Value.phase == TouchPhase.Canceled)
-                    remove.Add(kv.Key);
-            foreach (var id in remove) { m_Active.Remove(id); m_LastSeen.Remove(id); }
+            // 遷移を1段ずつ進めて今フレームの公開分を決める。
+            // - 公開中の指が遷移 phase (Began/Ended/Canceled) なら、それは前フレーム
+            //   で丸1フレーム見えたので、次の段へ進んでよい。
+            // - 公開中が Moved/Stationary なら、積まれた非遷移状態は最新へ畳んで
+            //   よいが、遷移が積まれていればそこで止めて遷移を公開する。
+            // - Ended/Canceled を公開した指は次フレームで消す (今フレームは見せる)。
+            var ids = new System.Collections.Generic.HashSet<int>(m_Active.Keys);
+            foreach (var id in m_Pending.Keys) ids.Add(id);
+            var finished = new System.Collections.Generic.List<int>();
+            foreach (var id in ids)
+            {
+                bool hasCur = m_Active.TryGetValue(id, out var cur);
+                if (hasCur && (cur.phase == TouchPhase.Ended || cur.phase == TouchPhase.Canceled))
+                {
+                    // 終了は前フレームで公開済み。残りの遷移 (同じ id の再利用による
+                    // 新しい Began 等) が無ければ指を消す。
+                    if (!HasPending(id)) { finished.Add(id); continue; }
+                    hasCur = false; // 次の段 (新しい指) として扱う
+                }
+                if (!HasPending(id))
+                {
+                    // 新しい状態が無い Began は、指がまだ押されている間 Stationary
+                    // として公開し続ける (ネイティブのタッチと同じ)。
+                    if (hasCur && cur.phase == TouchPhase.Began)
+                    {
+                        cur.phase = TouchPhase.Stationary;
+                        cur.deltaPosition = Vector2.zero;
+                        m_Active[id] = cur;
+                    }
+                    continue;
+                }
+                var q = m_Pending[id];
+                RemoteTouch next = default;
+                bool have = false;
+                while (q.Count > 0)
+                {
+                    var s = q.Dequeue();
+                    if (IsTransition(s.phase))
+                    {
+                        if (have) { RequeueFront(id, s); break; } // 非遷移を先に公開し、遷移は次フレーム
+                        next = s; have = true; break;
+                    }
+                    // 非遷移は最新へ畳む。delta は最後に公開した位置からの総量にする。
+                    if (have) s.deltaPosition = s.position - next.position + next.deltaPosition;
+                    else if (hasCur) s.deltaPosition = s.position - cur.position;
+                    next = s; have = true;
+                }
+                if (have) m_Active[id] = next;
+                if (q.Count == 0) m_Pending.Remove(id);
+            }
+            foreach (var id in finished) { m_Active.Remove(id); m_LastSeen.Remove(id); }
+
+            m_Touches = new System.Collections.Generic.List<RemoteTouch>(m_Active.Values).ToArray();
+        }
+
+        private bool HasPending(int id) =>
+            m_Pending.TryGetValue(id, out var q) && q.Count > 0;
+
+        private bool HasPendingTransition(int id, TouchPhase ph)
+        {
+            if (!m_Pending.TryGetValue(id, out var q)) return false;
+            foreach (var s in q) if (s.phase == ph) return true;
+            return false;
+        }
+
+        private bool LastKnown(int id, out RemoteTouch last)
+        {
+            last = default;
+            bool found = false;
+            if (m_Active.TryGetValue(id, out var a)) { last = a; found = true; }
+            if (m_Pending.TryGetValue(id, out var q))
+                foreach (var s in q) { last = s; found = true; }
+            return found;
+        }
+
+        private void EnqueuePending(int id, RemoteTouch s)
+        {
+            if (!m_Pending.TryGetValue(id, out var q))
+            {
+                q = new System.Collections.Generic.Queue<RemoteTouch>();
+                m_Pending[id] = q;
+            }
+            q.Enqueue(s);
+        }
+
+        private void RequeueFront(int id, RemoteTouch s)
+        {
+            // Queue には先頭へ戻す操作が無いので、遷移1件のために作り直す (低頻度)。
+            var rest = HasPending(id) ? m_Pending[id].ToArray() : System.Array.Empty<RemoteTouch>();
+            var q = new System.Collections.Generic.Queue<RemoteTouch>();
+            q.Enqueue(s);
+            foreach (var r in rest) q.Enqueue(r);
+            m_Pending[id] = q;
         }
 
         private void ApplyPacket(string json)
@@ -430,7 +532,7 @@ namespace HyperSonic
             foreach (var t in pkt.touches)
             {
                 var pos = new Vector2((vis.x + t.x * vis.width) * w, (vis.y + t.y * vis.height) * h);
-                m_Active.TryGetValue(t.id, out var prev);
+                LastKnown(t.id, out var prev);
                 float last = m_LastSeen.TryGetValue(t.id, out var ls) ? ls : now;
                 var rt = new RemoteTouch
                 {
@@ -442,7 +544,9 @@ namespace HyperSonic
                     pressure = t.pr,
                     deltaTime = now - last,
                 };
-                m_Active[t.id] = rt;
+                // 直接 m_Active へ書かず遷移列へ積む。Update 側が1フレーム1段で
+                // 公開するので、同じバッチで届いた Began が Moved に潰れない。
+                EnqueuePending(t.id, rt);
                 m_LastSeen[t.id] = now;
             }
         }

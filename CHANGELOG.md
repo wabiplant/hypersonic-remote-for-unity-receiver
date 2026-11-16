@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1
+
+- Fix touch phases being lost when several packets for one finger arrive
+  within a single frame. The receiver previously kept only the latest state
+  per finger, so a Began that was followed by a Moved in the same frame was
+  never published, and polling readers (virtual joysticks and other controls
+  that capture a finger on Began) never saw the touch start. Incoming states
+  are now queued per finger and published one transition step per frame:
+  Began and Ended/Canceled are each guaranteed to stay visible for a full
+  frame, and consecutive Moved/Stationary updates are coalesced with their
+  delta accumulated — the same semantics as Unity's built-in Input.touches.
+
 ## 1.1.0
 
 - USB input no longer needs iproxy. A relay built into the package speaks
