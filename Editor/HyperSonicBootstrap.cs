@@ -21,15 +21,27 @@ namespace HyperSonic.Editor
         static HyperSonicBootstrap()
         {
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-            if (EditorApplication.isPlaying) EditorApplication.delayCall += EnsureSpawned;
+            if (EditorApplication.isPlaying)
+            {
+                EditorApplication.delayCall += EnsureSpawned;
+                HyperSonicUsbRelay.Start();
+            }
         }
 
         private static bool s_SpawnedThisSession;
 
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
-            if (state == PlayModeStateChange.EnteredPlayMode) EnsureSpawned();
-            else if (state == PlayModeStateChange.ExitingPlayMode) s_SpawnedThisSession = false;
+            if (state == PlayModeStateChange.EnteredPlayMode)
+            {
+                EnsureSpawned();
+                HyperSonicUsbRelay.Start();
+            }
+            else if (state == PlayModeStateChange.ExitingPlayMode)
+            {
+                s_SpawnedThisSession = false;
+                HyperSonicUsbRelay.Stop();
+            }
         }
 
         private static void EnsureSpawned()

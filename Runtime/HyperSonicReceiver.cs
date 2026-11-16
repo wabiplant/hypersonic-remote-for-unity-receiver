@@ -270,9 +270,10 @@ namespace HyperSonic
         }
 
         /// <summary>
-        /// USB 経路 (受信用): Mac 上で別途 iproxy を起動しておく前提。
-        ///   iproxy 47778 47779   (libimobiledevice / brew install libimobiledevice)
-        /// これにより localhost:47778 への TCP 接続が USB ケーブル越しに端末の 47779 へ届く。
+        /// USB 経路 (受信用): パッケージ同梱の HyperSonicUsbRelay (Editor) が
+        /// usbmuxd へ直接接続し、localhost:47778 への TCP 接続を USB ケーブル越しに
+        /// 端末の 47779 へ中継する。利用者側の追加インストールや iproxy の
+        /// 手動起動は不要 (ケーブルを繋ぐだけ)。
         /// Unity Remote や Xcode が使う usbmux と同じ仕組みで、Wi-Fi を通らない。
         /// 接続できない間は静かにリトライし続ける (端末未接続は通常状態のため)。
         /// </summary>
@@ -287,7 +288,7 @@ namespace HyperSonic
                         client.NoDelay = true; // 小さな入力パケットを溜めない (遅延対策の要)
                         client.Connect(IPAddress.Loopback, UsbLocalPort);
                         m_UsbClient = client;
-                        Debug.Log("[HyperSonic] USB input connected via iproxy.");
+                        Debug.Log("[HyperSonic] USB input connected.");
                         var stream = client.GetStream();
                         var reader = new System.IO.StreamReader(stream, Encoding.UTF8);
                         string line;

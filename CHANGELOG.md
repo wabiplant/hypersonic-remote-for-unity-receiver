@@ -1,7 +1,12 @@
 # Changelog
 
-## 1.0.4
+## 1.1.0
 
+- USB input no longer needs iproxy. A relay built into the package speaks
+  the usbmux protocol directly (macOS/Linux: /var/run/usbmuxd, Windows:
+  Apple Mobile Device Service on 127.0.0.1:27015) and forwards the cable
+  connection to the receiver during Play mode. Just plug the iPhone in.
+  If you already run iproxy yourself, the relay steps aside.
 - Use DestroyImmediate for the stale-object sweep: the leftovers float
   outside any scene, where a deferred Destroy() never reaches them.
 - Ship .meta files for the remaining package files (README, CHANGELOG,
